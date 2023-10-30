@@ -14,8 +14,9 @@ from lava.magma.core.model.py.model import PyLoihiProcessModel
 from IPython.display import display, clear_output
 import matplotlib.pyplot as plt
 
+
 class Visualiser(AbstractProcess):
-    """Visualiser process for real-time classification.
+    """Visualiser process for spike input or output.
 
     This process plots a graph of the input in real time
 
@@ -24,13 +25,14 @@ class Visualiser(AbstractProcess):
 
     in_shape (int): Shape of input vector.
     """
-    def __init__(self, in_shape, sample_length):
+    def __init__(self, in_shape, sample_length, window_size):
             super().__init__()
             # Set process variables
             self.a_in = InPort(shape=in_shape)
             # self.sample_length = Var(shape=(1,), init=sample_length)
             self.proc_params['in_shape'] = in_shape
             self.proc_params['sample_length'] = sample_length
+            self.proc_params['window_size'] = window_size
             
             
 @implements(proc=Visualiser, protocol=LoihiProtocol)
@@ -45,6 +47,7 @@ class VisualiserModel(PyLoihiProcessModel):
         self.ax1 = self.fig.add_subplot() #1, 1, 1
         
         self.sample_length = proc_params["sample_length"]
+        self.window_size = proc_params["window_size"]
         in_shape = proc_params["in_shape"]
         
         # Create empty sample array
@@ -63,9 +66,13 @@ class VisualiserModel(PyLoihiProcessModel):
         # Clear plot and replot data
         self.ax1.clear()
         self.ax1.scatter(points[1], points[0])
-        step = 10
-        self.ax1.set_xticks(np.arange(0, self.sample_length + step, step))
-        self.ax1.set_yticks(np.arange(self.a_in.shape[0]))
+        
+        if self.time_step < self.window_size:
+            self.ax1.set_xlim(0, self.window_size)
+        else:
+            self.ax1.set_xlim(self.time_step-self.window_size, self.time_step + self.window_size)
+            
+        # self.ax1.set_yticks(np.arange(self.a_in.shape[0]))
         self.ax1.set_ylabel("Neuron Idx")
         self.ax1.set_xlabel("Time Step")
 
