@@ -13,6 +13,7 @@ from lava.magma.core.model.py.model import PyLoihiProcessModel
 from IPython.display import display, clear_output
 import matplotlib.pyplot as plt
 
+
 class DecisionMaker(AbstractProcess):
     """Decision making process for real-time classification.
 
@@ -120,6 +121,7 @@ class DecisionMakerVisualiserModel(PyLoihiProcessModel):
         
         print(f"Setup decision maker visualiser. Input shape: {in_shape}")
 
+
     def run_spk(self):
         # Recieve a vector of 0,1s at input
         data_in = self.a_in.recv()
@@ -129,10 +131,12 @@ class DecisionMakerVisualiserModel(PyLoihiProcessModel):
         
         # Find label and confidence
         label = np.argmax(self.data)
-        confidence  = np.max(self.data) / np.sum(self.data)
+        confidence = np.max(self.data) / np.sum(self.data)
         
         # Clear plot and replot data
         self.bar.clear()
+        self.label.clear()
+        
         self.bar.bar(np.arange(self.a_in.shape[-1]), self.data)
         self.bar.set_xticks(np.arange(self.a_in.shape[-1]))
         # self.ax1.set_yticks(np.arange(self.a_in.shape[0]))
@@ -140,7 +144,12 @@ class DecisionMakerVisualiserModel(PyLoihiProcessModel):
         self.bar.set_xlabel("Output Label")
         
         # Add text readout of confidence and output label
-        self.label.text(x=0.42, y=0.5, s=f"Output Classification: {label} \n Confidence: {confidence}", verticalalignment="center")
+        self.label.text(x=0.42, y=0.5, 
+                        s=f"Output Classification: {label} \n Confidence: {confidence:.2f}",
+                        verticalalignment="center",
+                        fontsize="large",
+                        fontstyle="normal"
+                        )
         self.label.axis('off')
 
         # Live display
