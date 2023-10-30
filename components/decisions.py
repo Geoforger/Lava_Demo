@@ -10,6 +10,8 @@ from lava.magma.core.resources import CPU
 from lava.magma.core.decorator import implements, requires, tag
 from lava.magma.core.model.py.model import PyLoihiProcessModel
 
+from IPython.display import display, clear_output
+import matplotlib.pyplot as plt
 
 class DecisionMaker(AbstractProcess):
     """Decision making process for real-time classification.
@@ -55,7 +57,6 @@ class PyDecisionMaker(PyLoihiProcessModel):
     # NOTE: THIS IS SO STUPID. I CAN ONLY PROBE THIS VAR IF ITS AN ARRAY
     confidence: np.ndarray = LavaPyType(np.ndarray, float)
 
-
     def __init__(self, proc_params=None):
         super().__init__()
         self.offset = proc_params["offset"]
@@ -82,6 +83,64 @@ class PyDecisionMaker(PyLoihiProcessModel):
                 self.out.send(np.array([16]))
         else:
             self.out.send(np.array([16]))
+
+
+class DecisionMakerVisualiser(AbstractProcess):
+    """Visualiser process for real-time classification.
+
+    This process plots the status of the decision algorithm in real time
+
+    Parameters
+    ----------
+
+    in_shape (int): Shape of input vector.
+    """
+    def __init__(self, in_shape):
+            super().__init__()
+            # Set process variables
+            self.a_in = InPort(shape=in_shape)
+            self.proc_params['in_shape'] = in_shape
+    
+
+@implements(proc=DecisionMakerVisualiser, protocol=LoihiProtocol)
+@requires(CPU)
+class DecisionMakerVisualiserModel(PyLoihiProcessModel): 
+    a_in = LavaPyType(PyInPort.VEC_DENSE, float)
+    # sample_length: int = LavaPyType(int, int)
+    
+    def __init__(self, proc_params=None) -> None:
+        super().__init__()
+        self.fig = plt.figure(figsize=(15,5))
+        self.bar = self.fig.add_subplot()
+        # self.label = self.fig.add_subplot()
+
+        in_shape = proc_params["in_shape"]
+        
+        # Create empty sample array
+        self.data = np.zeros(in_shape[0])
+        
+        print(f"Setup decision maker visualiser. Input shape: {in_shape}")
+
+    def run_spk(self):
+        # Recieve a vector of 0,1s at input
+        data_in = self.a_in.recv()
+        
+        # Add the vector to the array
+        self.data = self.data + data_in
+        
+        # Clear plot and replot data
+        self.bar.clear()
+        self.bar.bar(np.arange(self.a_in.shape[-1]), self.data)
+        self.bar.set_xticks(np.arange(self.a_in.shape[-1]))
+        # self.ax1.set_yticks(np.arange(self.a_in.shape[0]))
+        self.bar.set_ylabel("Num Spikes")
+        self.bar.set_xlabel("Output Label")
+
+        # Live display
+        clear_output(wait=True)
+        display(self.fig)
+
+
 
 
 
