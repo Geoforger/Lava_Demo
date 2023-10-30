@@ -110,9 +110,8 @@ class DecisionMakerVisualiserModel(PyLoihiProcessModel):
     
     def __init__(self, proc_params=None) -> None:
         super().__init__()
-        self.fig = plt.figure(figsize=(15,5))
-        self.bar = self.fig.add_subplot()
-        # self.label = self.fig.add_subplot()
+        # Create subfigures
+        self.fig, (self.bar, self.label) = plt.subplots(2,1, figsize=(10,7), gridspec_kw={'height_ratios': [4, 1]})
 
         in_shape = proc_params["in_shape"]
         
@@ -128,6 +127,10 @@ class DecisionMakerVisualiserModel(PyLoihiProcessModel):
         # Add the vector to the array
         self.data = self.data + data_in
         
+        # Find label and confidence
+        label = np.argmax(self.data)
+        confidence  = np.max(self.data) / np.sum(self.data)
+        
         # Clear plot and replot data
         self.bar.clear()
         self.bar.bar(np.arange(self.a_in.shape[-1]), self.data)
@@ -135,6 +138,10 @@ class DecisionMakerVisualiserModel(PyLoihiProcessModel):
         # self.ax1.set_yticks(np.arange(self.a_in.shape[0]))
         self.bar.set_ylabel("Num Spikes")
         self.bar.set_xlabel("Output Label")
+        
+        # Add text readout of confidence and output label
+        self.label.text(x=0.42, y=0.5, s=f"Output Classification: {label} \n Confidence: {confidence}", verticalalignment="center")
+        self.label.axis('off')
 
         # Live display
         clear_output(wait=True)
