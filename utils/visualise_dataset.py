@@ -8,45 +8,47 @@ import glob
 
 def main():
     # Import data
-    path = "/home/george/Documents/FrankaLava/data/Natural-12tex-100samples-linear_velocity-vel-40-1698054720.2607744/"
-    files = glob.glob(f"{path}/*.npy")
-    data_proc = DataProcessor.load_data_np(path=files[1])
-
-    # Meta params
-    start_vel = 10
-    distance = 60
-    acceleration = 20
-    dt = 0.01
-    # sample_length = time_from_accel(start_vel, acceleration, distance) * 1000
-    sample_length = 2000
+    path = "/home/george/Documents/Lava_Demo/data/Handheld_tap_stroke_20/"
+    files = glob.glob(f"{path}/*")
     
-    # Preprocess data
-    data_proc.pixel_reduction(160, 170, 60, 110)
-    # data_proc.offset_values(0, reduce=True) # Remove values lower than 0
-    data_proc.remove_cuttoff(sample_length) # Remove events after the sample has ended
+    for f in files:
+        print(f)
+        data_proc = DataProcessor.load_data(path=f)
 
-    print(f"Shape of data pre pooling: {data_proc.data.shape}")
+        # Meta params
+        start_vel = 10
+        distance = 60
+        acceleration = 20
+        dt = 0.01
+        # sample_length = time_from_accel(start_vel, acceleration, distance) * 1000
+        sample_length = 3000
+        
+        # Preprocess data
+        data_proc.pixel_reduction(184, 194, 120, 110)
+        data_proc.offset_values(0, reduce=True) # Remove values lower than 0
+        data_proc.remove_cuttoff(sample_length) # Remove events after the sample has ended
 
-    # Plot heatmap
-    # fig, ax = plt.subplot(2)
+        print(f"Shape of data pre pooling: {data_proc.data.shape}")
 
-    data_proc.plot_data(display=True, normalise=True)
-    # plt.clf()
+        # Plot heatmap
+        # fig, ax = plt.subplot(2)
 
-    # Try pooling
-    kernel = (4,4)
-    stride = 4
-    threshold = 2
-    data_proc.threshold_pooling(kernel, stride, threshold)
-    print(f"Shape of data post pooling: {data_proc.data.shape}")
+        data_proc.plot_data(display=True, normalise=True)
+        plt.clf()
 
-    # Plot heatmap
-    data_proc.plot_data(display=True, normalise=True)
-    # plt.clf()
-    plt.show()
+        # Try pooling
+        kernel = (4,4)
+        stride = 4
+        threshold = 1
+        data_proc.threshold_pooling(kernel, stride, threshold)
+        print(f"Shape of data post pooling: {data_proc.data.shape}")
 
-    # Plot raster plot
-    raster_plot(data_proc.data, display=True)
+        # Plot heatmap
+        data_proc.plot_data(display=True, normalise=True)
+        plt.clf()
+
+        # Plot raster plot
+        raster_plot(data_proc.data, display=True)
 
 
 if __name__ == "__main__":

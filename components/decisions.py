@@ -159,8 +159,6 @@ class DecisionMakerVisualiserModel(PyLoihiProcessModel):
 
 
 
-
-
 # Testing function
 def main():
     # Test params

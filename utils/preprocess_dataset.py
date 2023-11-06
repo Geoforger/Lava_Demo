@@ -26,7 +26,8 @@ def PreprocessSample(**kwargs):
     filename = kwargs["sample"]
 
     try:
-        data = DataProcessor.load_data_np(path=filename)
+        # data = DataProcessor.load_data_np(path=filename)
+        data = DataProcessor.load_data(path=filename)
         
         # Check args presented and apply preprocessing
         if "pixel_reduction" in kwargs:
@@ -90,7 +91,7 @@ def PreprocessDataset(**kwargs):
     print(args["OUTPUT_PATH"])
 
     path = args.get("DATASET_PATH", None)
-    filenames = glob.glob(f"{path}/*.npy") 
+    filenames = glob.glob(f"{path}/*") 
 
     arg_dicts = [args.copy() for _ in range(len(filenames))]
     for idx, file in enumerate(filenames):
@@ -110,11 +111,11 @@ def PreprocessDataset(**kwargs):
 
 
 def main(): 
-    dataset = f"/home/george/Documents/FrankaLava/data/"
-    output = "/home/george/Documents/FrankaLava/data/Natural_Processed_Accelerations_4x4_pooling/"
+    dataset = f"/home/george/Documents/Lava_Demo/data/"
+    output = "/home/george/Documents/Lava_Demo/data/preprocessed_data"
     
     folders = [
-        "Natural-12tex-100samples-linear_acceleration-vel-40-1698054720.2607744"
+        "Handheld_tap_stroke_20/"
     ]
 
     for folder in folders:
@@ -123,15 +124,15 @@ def main():
         args = {
             "DATASET_PATH": dataset+folder,
             "OUTPUT_PATH": output,
-            "pixel_reduction": (160, 170, 60, 110),
+            "pixel_reduction": (184, 194, 120, 110),
             # "lava": False,    # NOTE: THIS SHOULD BE COMMENTED OUT AND NOT SET TO FALSE
             "save": True,
-            "cuttoff": 2000,
+            "cuttoff": 3000,
             "rmv_duplicates": True,
             "pooling": True,
             "kernel": (4,4),
             "stride": 4,
-            "threshold": 2,
+            "threshold": 1,
         }
 
         PreprocessDataset(**args)

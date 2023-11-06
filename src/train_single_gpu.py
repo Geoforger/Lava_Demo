@@ -10,24 +10,12 @@ from datetime import datetime
 import os
 import time
 import glob
-import csv
-
 # Import the data processing class and data collection class
 import sys
 sys.path.append("..")
 from Lava_Demo.utils.utils import calculate_pooling_dim, nums_from_string
-from Lava_Demo.training.demo_loader import demoDataset
-# from sklearn.metrics import confusion_matrix, accuracy_score
-# from sklearn.model_selection import KFold
-# from hyperopt import fmin, hp, tpe, Trials
-# from hyperopt.pyll.base import scope
-
-# Multi GPU
-import torch.distributed as dist
-from torch.nn.parallel import DistributedDataParallel as DDP
-import torch.multiprocessing as mp
-from torch.utils.data.distributed import DistributedSampler
-
+from Lava_Demo.utils.demo_loader import demoDataset
+from sklearn.metrics import confusion_matrix, accuracy_score
 
 # ## Define network structure as before
 class Network(torch.nn.Module):  # Define network
@@ -50,7 +38,7 @@ class Network(torch.nn.Module):  # Define network
 
         self.blocks = torch.nn.ModuleList([
             slayer.block.cuba.Dense(
-                neuron_params_drop, x_size * y_size * 1, self.hidden_size, weight_norm=True),  # , delay=True),  # 180 * 240 * 1
+                neuron_params_drop, x_size * y_size * 1, self.hidden_size, weight_norm=True), 
             slayer.block.cuba.Dense(
                 neuron_params_drop, self.hidden_size, self.hidden_size, weight_norm=True),
             slayer.block.cuba.Dense(
@@ -128,60 +116,65 @@ def train_test_split(PATH, textures, ratio=0.8):
     print("Split files into train test folders")
 
 
-def setup(rank, world_size):  
-    os.environ['MASTER_ADDR'] = 'localhost'
-    os.environ['MASTER_PORT'] = '12355'
-    dist.init_process_group("nccl", rank=rank, world_size=world_size)
-
-
-def prepare(dataset, rank, world_size, batch_size=32, pin_memory=False, num_workers=0):
-    sampler = DistributedSampler(dataset, num_replicas=world_size, rank=rank, shuffle=False, drop_last=False)
-    
-    dataloader = DataLoader(dataset, batch_size=batch_size, pin_memory=pin_memory, num_workers=num_workers, drop_last=False, shuffle=False, sampler=sampler)
-    
-    return dataloader
-
-
-def cleanup():
-    dist.destroy_process_group()
-    print("Destroyed process groups...")
-
-
-def objective(rank, world_size, DATASET_PATH, OUTPUT_PATH, kernel, stride):
-    # Create multi GPU server thingy
-    setup(rank, world_size)
-    
+def objective(DATASET_PATH, hidden_layer):
     num_labels = 2
     num_trials = 100
-    sample_length = 2000
-    x_size = calculate_pooling_dim(640 - (160 + 170), kernel[1], stride, 1)
-    y_size = calculate_pooling_dim(480 - (60 + 110), kernel[0], stride, 1)
+
+    # ## Preprocess data for Network training
+    # ## Variables for data input
+    # Input data variables
+    kernel = (4,4)
+    stride = 4
+    threshold = 1
+    sampling_time = 1
+    sample_length = 3000
+    (184, 194, 120, 110)
+    x_size = calculate_pooling_dim(640 - (184 + 194), kernel[1], stride, 1)
+    y_size = calculate_pooling_dim(480 - (120 + 110), kernel[0], stride, 1)
+
+    # Paths to local folders
+    # Data comes from neuroTac for this script
+    # Not sure if we output to anything other than the terminal at this point
+    FOLDER_PATH = "/home/george/Documents/Lava_Demo/networks/"
+    test_time = datetime.now()
+    test_timing = test_time.strftime("%d%m%Y%H:%M:%S")
+    OUTPUT_PATH = os.path.join(FOLDER_PATH, f"tests/test-{test_timing}-{sample_length}/")
+    os.mkdir(OUTPUT_PATH)
+
+    ## Set processing target
+    # Check if cuda available on device for GPU processing
+    if torch.cuda.is_available():
+        print("Cuda available")
+        print("Cuda Used")
+        device = torch.device('cuda:0')
+        torch.cuda.empty_cache()
+    else:
+        raise Exception("CUDA UNAVAILABLE")
 
     #############################
     # Training params
     #############################
-    num_epochs = 40
+    num_epochs = 100
     learning_rate = 0.01   # Starting learning rate
     # NOTE: Batch size is scaled down for each sample length as the samples get longer.
-    batch_size = 30     #batch(sampling_length) * torch.cuda.device_count()
-    num_workers = 0     # NOTE: 24 is recommended but at 6 the process dies
+    batch_size = 2     #batch(sampling_length) * torch.cuda.device_count()
+    num_workers = 2     # NOTE: 24 is recommended but at 6 the process dies
 
-    hidden_layer = 1250
     factor = 3.33   # Factor by which to divide the learning rate
-    lr_epoch = 20    # Lower the learning rate by factor every lr_epoch epochs
+    lr_epoch = 10    # Lower the learning rate by factor every lr_epoch epochs
     true_rate = 0.8
     false_rate = 0.02
 
-    # Create network and distributed object
-    net = Network(hidden_size=hidden_layer, x_size=x_size, y_size=y_size).to(rank)
-    net = DDP(net, device_ids=[rank], output_device=rank, find_unused_parameters=False)
+    # Initialise network and slayer assistant
+    net = Network(hidden_size=hidden_layer, x_size=x_size, y_size=y_size)
+    net.to(device)
 
     # TODO: 1) Play around with different optimisers
     optimizer = torch.optim.Adam(net.parameters(), lr=learning_rate)
 
     # Initialise error module
     error = slayer.loss.SpikeRate(
-        true_rate=true_rate, false_rate=false_rate, reduction='sum').to(rank)
+        true_rate=true_rate, false_rate=false_rate, reduction='sum').to(device)
 
     # Initialise stats and training assistants
     stats = slayer.utils.LearningStats()
@@ -194,8 +187,8 @@ def objective(rank, world_size, DATASET_PATH, OUTPUT_PATH, kernel, stride):
     training_set = demoDataset(DATASET_PATH, train=True, x_size=x_size, y_size=y_size, sample_length=sample_length)
     testing_set = demoDataset(DATASET_PATH, train=False, x_size=x_size, y_size=y_size, sample_length=sample_length)
 
-    train_loader = prepare(training_set, rank, world_size, batch_size=batch_size, num_workers=num_workers)
-    test_loader = prepare(testing_set, rank, world_size, batch_size=batch_size, num_workers=num_workers)
+    train_loader = DataLoader(dataset=training_set, batch_size=batch_size, shuffle=True, num_workers=num_workers, pin_memory=True)
+    test_loader = DataLoader(dataset=testing_set, batch_size=batch_size, shuffle=True, num_workers=num_workers, pin_memory=True)
 
     ##################################
     # Training loop
@@ -203,22 +196,23 @@ def objective(rank, world_size, DATASET_PATH, OUTPUT_PATH, kernel, stride):
     # Loop through each training epoch
     print("Starting training loop")
 
-    # torch.cuda.empty_cache()
+    torch.cuda.empty_cache()
     tic = time.time()
+    
+    testing_labels = []
+    testing_preds = []
 
     for epoch in range(num_epochs):
         print(f"\nEpoch {epoch}")
         epoch_tic = time.time()
-        train_loader.sampler.set_epoch(epoch)
-        test_loader.sampler.set_epoch(epoch)
         
         # Reduce learning rate by factor every lr_epoch epochs
         # Check to prevent lowering lr on first epoch
-        if epoch != 0:
-            if(epoch % lr_epoch) == 0:
-                learning_rate /= factor
-                assistant.reduce_lr(factor)
-                print(f"Learning rate reduced to {learning_rate}")
+        # if epoch != 0:
+        #     if(epoch % lr_epoch) == 0:
+        #         learning_rate /= factor
+        #         assistant.reduce_lr(factor)
+        #         print(f"Learning rate reduced to {learning_rate}")
 
         # Training loop
         print("Training...")
@@ -227,12 +221,16 @@ def objective(rank, world_size, DATASET_PATH, OUTPUT_PATH, kernel, stride):
                 
         # Testing loop
         print("Testing...")
-        for _, (input_, label) in enumerate(test_loader): 
+        for _, (input_, label) in enumerate(test_loader):  # testing loop
             output = assistant.test(input_, label)
+            if epoch == num_epochs - 1:
+                for l in range(len(slayer.classifier.Rate.predict(output))):
+                    testing_labels.append(label[l].cpu())
+                    testing_preds.append(
+                        slayer.classifier.Rate.predict(output)[l].cpu())
         
-        # TODO: This should be changed to look at the output stats file instead of the stats object
         if stats.testing.best_accuracy:
-            torch.save(net.module.state_dict(), f"{OUTPUT_PATH}/network.pt")
+            torch.save(net.state_dict(), f"{OUTPUT_PATH}/network.pt")
         
         epoch_timing = (time.time() - epoch_tic) / 60
         print(f'\rTime taken for epoch: {np.round(epoch_timing, 2)}mins')
@@ -242,59 +240,65 @@ def objective(rank, world_size, DATASET_PATH, OUTPUT_PATH, kernel, stride):
         # net.grad_flow(OUTPUT_PATH + '/')
         print(stats)
     
-    # TODO: This should be changed to look at the output stats file instead of the stats object
     # Save the best network to a hdf5 file
-    net.module.load_state_dict(torch.load(f"{OUTPUT_PATH}/network.pt"))
-    net.module.export_hdf5(f"{OUTPUT_PATH}/network.net")
+    net.load_state_dict(torch.load(f"{OUTPUT_PATH}/network.pt"))
+    net.export_hdf5(f"{OUTPUT_PATH}/network.net")
         
     toc = time.time()
     train_timing = (toc - tic) / 60
     print("Finished training")
     print(f'\rTime taken to train network: {np.round(train_timing, 2)}mins')
+    
+    ###################################
+    # Plot training conf matrix
+    ###################################
+    materials = ["0", "1"]
+    materials = np.arange(num_labels)
+    cnf_matrix = confusion_matrix(testing_labels, testing_preds)
+    plt.figure(figsize=(10, 10))
+    plt.xticks(range(len(materials)), materials)
+    plt.yticks(range(len(materials)), materials)
+    plt.imshow(cnf_matrix)
+    plt.title('Confusion matrix')
+    plt.xlabel("True Labels")
+    plt.ylabel("Predicted Labels")
+    plt.savefig(f"{OUTPUT_PATH}{num_epochs}training_confusion.png")
+    # plt.show()
+    plt.close()
 
-    # # ## Save meta data
-    header = ["Hidden Layer Size", "Epochs", "Training Iters", "Sample Length (ms)", "True Rate", "False Rate", "Accuracy (%)", "X Size", "Y Size", "Pooling Kernel", "Stride"]
-    data = [hidden_layer, num_epochs, num_trials, sample_length, true_rate, false_rate, stats.testing.max_accuracy, x_size, y_size, kernel, stride]
+    # ## Save meta data
+    import csv
 
-    with open(f'{OUTPUT_PATH}/meta.csv', 'w', encoding='UTF8', newline='\n') as f:
+    # Save the hyper params to a csv file for analysis
+    header = ["Artificial or Natural", "Hidden Layer Size", "Epochs", "Training Iters", "Sample Length (ms)", "True Rate", "False Rate", "Force (N)", "Accuracy (%)"]
+    data = ["Natural", hidden_layer, num_epochs, num_trials, sample_length, true_rate, false_rate, 1, stats.testing.max_accuracy]
+
+    with open(f'{OUTPUT_PATH}meta.csv', 'w', encoding='UTF8', newline='\n') as f:
         writer = csv.writer(f)
         writer.writerow(header)
         writer.writerow(data)
         f.close()
+        
+    print(output)
+    output = output.cpu().numpy()
+    print(np.shape(output))
+    points = np.nonzero(output[0])
+    plt.scatter(points[1], points[0])
+    # plt.show()
+    plt.close()
 
-    cleanup()
-    time.sleep(3)
-    
-    # Return training accuracy to optimiser
+    # Return trainnig accuracy to optimiser
     return 1 - stats.testing.max_accuracy
-
 
 # Main function of the script
 def main():
-    DATASET_PATH = "/home/george/Documents/Lava_Demo/data/Natural_Processed_Accelerations_4x4_pooling/"
-    textures = [0, 1]
-
-    kernel = (4,4)
-    stride = 4
-    train_test_split(DATASET_PATH, textures=textures, ratio=0.8)   # Split data based on give ratio
+    DATASET_PATH = "/home/george/Documents/Lava_Demo/data/preprocessed_data/"
     
-    for _ in range(100):
-        # # Paths to local folders
-        # Data comes from neuroTac for this script
-        # Not sure if we output to anything other than the terminal at this point
-        FOLDER_PATH = "/home/george/Documents/Lava_Demo/networks/"
-        test_time = datetime.now()
-        test_timing = test_time.strftime("%d%m%Y%H:%M:%S")
-        OUTPUT_PATH = os.path.join(FOLDER_PATH, f"tests/multi_gpu-{test_timing}/")
-        os.mkdir(OUTPUT_PATH)
-        
-        world_size = 3
-        mp.spawn(
-            objective,
-            args=[world_size, DATASET_PATH, OUTPUT_PATH, kernel, stride],
-            nprocs=world_size
-        )
+    movements = [0, 1]
+    train_test_split(DATASET_PATH, textures=movements, ratio=0.8)   # Split data based on give ratio
 
+    for _ in range(200):
+        objective(DATASET_PATH=DATASET_PATH, hidden_layer=5000)
 
 if __name__ == "__main__":
     main()
