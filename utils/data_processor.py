@@ -17,7 +17,7 @@ import numpy as np
 # import os
 # import nums_from_string     # pip install nums_from_string
 import time
-# import torch  # Used to create torch tensor for integration with lava
+import torch  # Used to create torch tensor for integration with lava
 import lava.lib.dl.slayer as slayer  # Used for creating the Events object
 import seaborn as sns
 from matplotlib import pyplot as plt
@@ -503,6 +503,22 @@ class DataProcessor():
         order (int): Number of pooling operations being performed
         """
         return int(((input_dim - kernel_dim) / stride) + (1 * order))
+
+
+    def create_lava_array(self, sample_length):
+        """
+        Method to create a tensor of events compatible with lava input processes
+        
+        Arguments
+        ----------
+        sample_length (int): Length of the sample. Used to determine 3rd dimension of output tensor
+        """
+        y_size, x_size = np.shape(self.data)
+        events = self.create_events()
+        
+        event_tensor = events.fill_tensor(torch.zeros(1, y_size, x_size, sample_length, requires_grad=False))
+        
+        return event_tensor.reshape(-1, sample_length)
 
 # Testing of the class
 if __name__ == "__main__":
