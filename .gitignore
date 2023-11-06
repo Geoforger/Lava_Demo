@@ -1,1 +1,5 @@
 /data
+/networks
+/__pycache__
+/utils/__pycache__
+/components/__pycache__
