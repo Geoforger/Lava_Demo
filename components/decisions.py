@@ -145,7 +145,7 @@ class DecisionMakerVisualiserModel(PyLoihiProcessModel):
         
         # Add text readout of confidence and output label
         self.label.text(x=0.42, y=0.5, 
-                        s=f"Output Classification: {label} \n Confidence: {confidence:.2f}",
+                        s=f"Output Classification: {label} \n Confidence: {confidence:.2f} \n Time Step: {self.time_step}",
                         verticalalignment="center",
                         fontsize="large",
                         fontstyle="normal"
