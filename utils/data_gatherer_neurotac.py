@@ -9,7 +9,7 @@ from tkinter import ttk
 # from core.sensor.tactile_sensor_neuro_pyro_server import NeuroTac
 from Pyro5.api import Proxy
 
-sensor_type = 'NeuroTac_DVXplorer'  # NeuroTac version
+# sensor_type = 'NeuroTac_DVXplorer'  # NeuroTac version
 
 class DataCollector:
     def __init__(self, sensor_type):
@@ -25,9 +25,8 @@ class DataCollector:
         self.remaining_label = None
         self.obj_label = None
         self.t = None
+        self.prev_filename = None
 
-# def make_pyro(service = "neurotac_service_1"):
-#   return Proxy(f"PYRONAME:{service}")
 
     def create_gui(self):
             self.root = tk.Tk()
@@ -59,6 +58,7 @@ class DataCollector:
     def update_sensor_variables(self):
         # Your start recording logic here
         self.sensor.reset_variables()
+        self.prev_filename = self.sensor.events_on_filename
         events_on_file = os.path.join(self.events_dir,'taps_object_' + str(self.obj_idx) + '_trial_' +str(self.trial_idx) + '_events_on')
         events_off_file = os.path.join(self.events_dir,'taps_object_' + str(self.obj_idx) + '_trial_' +str(self.trial_idx) + '_events_off')
         events_video = os.path.join(self.video_dir,'event_stream_object_' + str(self.obj_idx) + '_trial_' +str(self.trial_idx) + '.mp4')
@@ -122,9 +122,9 @@ class DataCollector:
         self.obj_label.config(text=f"Object: {int(self.obj_idx)} Trial: {int(self.trial_idx)} ")
         self.update_sensor_variables()
 
-    def main(self):
-        collect_dir_name = os.path.join(os.path.basename(__file__)[:-3], os.path.basename(__file__)[:-3] + '_' + time.strftime('%m%d%H%M'))
-        collect_dir = os.path.join(os.environ['DATAPATH'], sensor_type, collect_dir_name)
+    def main(self, path):
+        collect_dir_name = os.path.join(os.path.basename(__file__)[:-3] + '_' + time.strftime('%m%d%H%M'))
+        collect_dir = os.path.join(path, self.sensor_type, collect_dir_name)
         self.video_dir = os.path.join(collect_dir, 'videos')
         self.events_dir = os.path.join(collect_dir, 'events')
 
@@ -137,6 +137,9 @@ class DataCollector:
             json.dump(meta, f)
 
         self.create_gui()
+
+        return self.prev_filename
+        
 
     def make_meta(self, tap_time=10, n_objects=2, n_trials=2):
         meta = locals().copy()
