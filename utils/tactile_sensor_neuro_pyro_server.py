@@ -1,6 +1,6 @@
 from argparse import ArgumentParser
 from Pyro5.api import expose, Daemon, locate_ns, oneway
-from core.sensor.tactile_sensor_neuro import NeuroTac
+from core.sensor.tactile_sensor_neuro_no_gui import NeuroTac
 import subprocess
 import time
 
@@ -9,7 +9,7 @@ class NeuroTacService(object):
     # Initialize sensor variables
     def __init__(self, save_events_video:bool=False, save_acc_video:bool=False, display:bool=False)-> None:
         self.sensor = NeuroTac(save_events_video=save_events_video, save_acc_video=save_acc_video, display=display)
-        print(f"Connected to {self.sensor.camera_type}")
+        print(f"Connected to {self.sensor._camera_type}")
 
     def __enter__(self):
         return self
@@ -19,67 +19,67 @@ class NeuroTacService(object):
 
     @property
     def camera_type(self):
-        return self.sensor.camera_type
+        return self.sensor.__camera_type
 
     @property
     def camera(self):
-        return self.sensor.camera
+        return self.sensor.__camera
 
     @property
     def n_data_points(self):
-        return self.sensor.n_data_points
+        return self.sensor.__n_data_points
 
     @property
     def events_on(self):
-        return self.sensor.events_on
+        return self.sensor._events_on
 
     @property
     def events_off(self):
-        return self.sensor.events_off
+        return self.sensor._events_off
    
     @property
     def frames(self):
-        return self.sensor.frames
+        return self.sensor._sensor._frames
 
     @property
     def save_events_video(self):
-        return self.save_events_video
+        return self.sensor._save_events_video
    
     @save_events_video.setter
     def save_events_video(self, save_events_video):
-        self.sensor.save_events_video = save_events_video
+        self.sensor._save_events_video = save_events_video
 
     @property
     def save_acc_video(self):
-        return self.save_acc_video
+        return self.sensor._save_acc_video
    
     @save_acc_video.setter
     def save_acc_video(self, save_acc_video):
-        self.sensor.save_acc_video = save_acc_video
+        self.sensor._save_acc_video = save_acc_video
 
     @property
     def events_on_filename(self):
-        return self.events_on_filename
+        return self.sensor._events_on_filename
    
     @events_on_filename.setter
     def events_on_filename(self, events_on_filename):
-        self.sensor.events_on_filename = events_on_filename
+        self.sensor._events_on_filename = events_on_filename
    
     @property
     def events_off_filename(self):
-        return self.events_off_filename
+        return self.sensor._events_off_filename
    
     @events_off_filename.setter
     def events_off_filename(self, events_off_filename):
-        self.sensor.events_off_filename = events_off_filename
+        self.sensor._events_off_filename = events_off_filename
    
     @property
     def events_video_filename(self):
-        return self.events_video_filename
+        return self.sensor._events_video_filename
    
     @events_video_filename.setter
     def events_video_filename(self, events_video_filename):
-        self.sensor.events_video_filename = events_video_filename
+        self.sensor._events_video_filename = events_video_filename
    
     @property
     def acc_video_filename(self):
@@ -87,15 +87,15 @@ class NeuroTacService(object):
    
     @acc_video_filename.setter
     def acc_video_filename(self, acc_video_filename):
-        self.sensor.acc_video_filename = acc_video_filename
+        self.sensor._acc_video_filename = acc_video_filename
    
     @property
     def display(self):
-        return self.display
+        return self.sensor._display
    
     @display.setter
     def display(self, display):
-        self.sensor.display = display
+        self.sensor._display = display
 
     # Sensor attributes not needed to access and therefore not exposed
     # self.starttime
@@ -108,11 +108,11 @@ class NeuroTacService(object):
 
     def start_logging(self):
         print('Started recording')
-        self.sensor.thread_run = True
+        self.sensor._thread_run = True
    
     @oneway
     def stop_logging(self):
-        self.sensor.thread_run = False
+        self.sensor._thread_run = False
         print('Stopped recording')  
 
     @oneway
@@ -125,8 +125,8 @@ class NeuroTacService(object):
     def value_cleanup(self):
         self.sensor.value_cleanup()
 
-    def set_filenames(self, events_on_file = None, events_off_file = None, events_video_file = None, acc_video_file = None, frames = None) -> None:
-        self.sensor.set_filenames(events_on_file=events_on_file, events_off_file=events_off_file, events_video_file=events_video_file, acc_video_file=acc_video_file, frames=frames)
+    def set_filenames(self, events_on_file = None, events_off_file = None, events_video_file = None, acc_video_file = None) -> None:
+        self.sensor.set_filenames(events_on_file=events_on_file, events_off_file=events_off_file, events_video_file=events_video_file, acc_video_file=acc_video_file)
 
     def save_events_on(self, path=None):
         self.sensor.save_events_on(path)
