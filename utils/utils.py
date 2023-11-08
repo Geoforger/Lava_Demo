@@ -62,7 +62,7 @@ def calculate_pooling_dim(input_dim, kernel_dim, stride, order):
     stride (int): Stride of the pooling operation
     order (int): Number of pooling operations being performed
     """
-    return int(((input_dim - kernel_dim) / stride) + (1 * order))
+    return int(((input_dim - kernel_dim) / stride) + (1 * order)) + 1
 
 def floats_from_string(string):
     """
