@@ -75,6 +75,7 @@ class VisualiserModel(PyLoihiProcessModel):
         # self.ax1.set_yticks(np.arange(self.a_in.shape[0]))
         self.ax1.set_ylabel("Neuron Idx")
         self.ax1.set_xlabel("Time Step")
+        self.ax1.set_yticks(np.arange(self.a_in.shape[0]))
 
         # Live display
         clear_output(wait=True)
