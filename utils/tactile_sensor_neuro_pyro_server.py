@@ -1,6 +1,6 @@
 from argparse import ArgumentParser
 from Pyro5.api import expose, Daemon, locate_ns, oneway
-from core.sensor.tactile_sensor_neuro_no_gui import NeuroTac
+from core.sensor.tactile_sensor_neuro import NeuroTac
 import subprocess
 import time
 
