@@ -12,7 +12,7 @@ from lava.magma.core.process.ports.ports import OutPort
 from lava.magma.core.process.process import AbstractProcess
 from lava.magma.core.resources import CPU
 from lava.magma.core.sync.protocols.loihi_protocol import LoihiProtocol
-from lava.utils.events import sub_sample, encode_data_and_indices
+from utils.events import sub_sample, encode_data_and_indices
 
 
 class DvStream(AbstractProcess):
@@ -103,7 +103,6 @@ class DvStreamPM(PyLoihiProcessModel):
         """
         events = self._get_next_event_batch()
         # if we have not received a new batch
-        print(events)
         if len(events) == 0:
             data = np.empty(self._shape_out)
             indices = np.empty(self._shape_out)
@@ -116,6 +115,8 @@ class DvStreamPM(PyLoihiProcessModel):
             if data.shape[0] > self._shape_out[0]:
                data, indices = sub_sample(data, indices,
                                           self._shape_out[0], self._random_rng)
+        # print(data)    
+        # print(indices)   
         self.out_port.send(data, indices)
 
     def _get_next_event_batch(self):

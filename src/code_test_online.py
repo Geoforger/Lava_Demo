@@ -16,13 +16,13 @@ from lava.magma.core.model.py.ports import PyInPort
 from lava.magma.core.model.py.type import LavaPyType
 from lava.magma.core.decorator import implements, requires
 from lava.magma.core.model.py.model import PyLoihiProcessModel
-from lava.magma.core.run_conditions import RunSteps
+from lava.magma.core.run_conditions import RunSteps, RunContinuous
 from lava.magma.core.run_configs import Loihi1SimCfg
 from dv_stream import DvStream, DvStreamPM
 
 from lava.magma.core.model.py.ports import PyOutPort
 from lava.magma.core.process.ports.ports import OutPort
-from lava.utils.events import sub_sample, encode_data_and_indices
+from utils.events import sub_sample, encode_data_and_indices
 
 from components.online_visualiser import OnlineVisualiser
 import matplotlib.pyplot as plt
@@ -69,23 +69,22 @@ class PyRecvSparsePM(PyLoihiProcessModel):
 def main():
     
 
-    max_num_events = 15
+    max_num_events = 20
     shape_frame_in = (240, 180)
     dv_stream = DvStream(address="127.0.0.1",
-                            port=52559,
+                            port=51627,
                             shape_out=(max_num_events,),
                             shape_frame_in=shape_frame_in)
 
-    recv_sparse = RecvSparse(shape=(max_num_events,))
     vis = OnlineVisualiser(in_shape=(max_num_events,), sample_length=max_num_events, frame_shape=shape_frame_in)
 
     # dv_stream.out_port.connect(recv_sparse.in_port)
     dv_stream.out_port.connect(vis.a_in)
 
-    num_steps = 100
+    num_steps = 1000
     run_cfg = Loihi1SimCfg()
-    run_cnd = RunSteps(num_steps=100)
-
+    # run_cnd = RunSteps(num_steps=num_steps)
+    run_cnd = RunContinuous()
     # F = lambda x: np.sin(2*x)
 
     # plt.ion()    
@@ -107,7 +106,7 @@ def main():
 
         # received_data = recv_sparse.data.get()
         # received_indices = recv_sparse.idx.get()
-
+    time.sleep(100)
 
     dv_stream.stop()
 
