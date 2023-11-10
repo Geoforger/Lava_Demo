@@ -13,6 +13,10 @@ from lava.magma.core.model.py.model import PyLoihiProcessModel
 from IPython.display import display, clear_output
 import matplotlib.pyplot as plt
 
+from PyQt5 import QtWidgets
+from pyqtgraph.Qt import QtGui, QtCore
+import pyqtgraph as pg
+
 
 class DecisionMaker(AbstractProcess):
     """Decision making process for real-time classification.
@@ -35,12 +39,12 @@ class DecisionMaker(AbstractProcess):
         super().__init__(**kwargs)
         shape = kwargs.get("in_shape")
         prior = kwargs.get("prior", 0)
-        
+
         self.proc_params["offset"] = kwargs.get("offset", 0)
         self.proc_params["threshold"] = kwargs.get("threshold", 0)
 
         # Set process variables
-        self.shape = shape[-1] # This can be passed as an integer
+        self.shape = shape[-1]  # This can be passed as an integer
         self.accumulator = Var(shape=shape, init=(np.ones(self.shape) * prior))
         self.confidence = Var(shape=(1,), init=0)
 
@@ -86,6 +90,7 @@ class PyDecisionMaker(PyLoihiProcessModel):
             self.out.send(np.array([16]))
 
 
+
 class DecisionMakerVisualiser(AbstractProcess):
     """Visualiser process for real-time classification.
 
@@ -96,67 +101,115 @@ class DecisionMakerVisualiser(AbstractProcess):
 
     in_shape (int): Shape of input vector.
     """
-    def __init__(self, in_shape):
-            super().__init__()
-            # Set process variables
-            self.a_in = InPort(shape=in_shape)
-            self.proc_params['in_shape'] = in_shape
-    
+
+    def __init__(self, in_shape, sample_length):
+        super().__init__()
+        # Set process variables
+        self.a_in = InPort(shape=in_shape)
+        self.proc_params["in_shape"] = in_shape
+        self.proc_params["sample_length"] = sample_length
+
+
+# @implements(proc=DecisionMakerVisualiser, protocol=LoihiProtocol)
+# @requires(CPU)
+# class DecisionMakerVisualiserModel(PyLoihiProcessModel):
+#     a_in = LavaPyType(PyInPort.VEC_DENSE, float)
+#     # sample_length: int = LavaPyType(int, int)
+
+#     def __init__(self, proc_params=None) -> None:
+#         super().__init__()
+#         # Create subfigures
+#         self.fig, (self.bar, self.label) = plt.subplots(
+#             2, 1, figsize=(10, 7), gridspec_kw={"height_ratios": [4, 1]}
+#         )
+
+#         in_shape = proc_params["in_shape"]
+
+#         # Create empty sample array
+#         self.data = np.zeros(in_shape[0])
+
+#         print(f"Setup decision maker visualiser. Input shape: {in_shape}")
+
+#     def run_spk(self):
+#         # Recieve a vector of 0,1s at input
+#         data_in = self.a_in.recv()
+
+#         # Add the vector to the array
+#         self.data = self.data + data_in
+
+#         # Find label and confidence
+#         label = np.argmax(self.data)
+#         confidence = np.max(self.data) / np.sum(self.data)
+
+#         # Clear plot and replot data
+#         self.bar.clear()
+#         self.label.clear()
+
+#         self.bar.bar(np.arange(self.a_in.shape[-1]), self.data)
+#         self.bar.set_xticks(np.arange(self.a_in.shape[-1]))
+#         # self.ax1.set_yticks(np.arange(self.a_in.shape[0]))
+#         self.bar.set_ylabel("Num Spikes")
+#         self.bar.set_xlabel("Output Label")
+
+#         # Add text readout of confidence and output label
+#         self.label.text(
+#             x=0.42,
+#             y=0.5,
+#             s=f"Output Classification: {label} \n Confidence: {confidence:.2f} \n Time Step: {self.time_step}",
+#             verticalalignment="center",
+#             fontsize="large",
+#             fontstyle="normal",
+#         )
+#         self.label.axis("off")
+
+#         # Live display
+#         clear_output(wait=True)
+#         display(self.fig)
+
 
 @implements(proc=DecisionMakerVisualiser, protocol=LoihiProtocol)
 @requires(CPU)
-class DecisionMakerVisualiserModel(PyLoihiProcessModel): 
+# @tag("pyqt")
+class PyQtDecisionMakerVisualiserModel(PyLoihiProcessModel):
     a_in = LavaPyType(PyInPort.VEC_DENSE, float)
     # sample_length: int = LavaPyType(int, int)
-    
+
     def __init__(self, proc_params=None) -> None:
         super().__init__()
-        # Create subfigures
-        self.fig, (self.bar, self.label) = plt.subplots(2,1, figsize=(10,7), gridspec_kw={'height_ratios': [4, 1]})
+        # Create pyqt window / figure
+        self.app = QtWidgets.QApplication([])
+        self.plt = pg.plot(title="Spike output plotting")
 
         in_shape = proc_params["in_shape"]
-        
+        self.sample_length = proc_params["sample_length"]
+
+
         # Create empty sample array
         self.data = np.zeros(in_shape[0])
-        
-        print(f"Setup decision maker visualiser. Input shape: {in_shape}")
 
+        print(f"Setup decision maker visualiser. Input shape: {in_shape}")
 
     def run_spk(self):
         # Recieve a vector of 0,1s at input
         data_in = self.a_in.recv()
-        
+
         # Add the vector to the array
         self.data = self.data + data_in
-        
+
         # Find label and confidence
         label = np.argmax(self.data)
         confidence = np.max(self.data) / np.sum(self.data)
-        
+
         # Clear plot and replot data
-        self.bar.clear()
-        self.label.clear()
-        
-        self.bar.bar(np.arange(self.a_in.shape[-1]), self.data)
-        self.bar.set_xticks(np.arange(self.a_in.shape[-1]))
-        # self.ax1.set_yticks(np.arange(self.a_in.shape[0]))
-        self.bar.set_ylabel("Num Spikes")
-        self.bar.set_xlabel("Output Label")
-        
-        # Add text readout of confidence and output label
-        self.label.text(x=0.42, y=0.5, 
-                        s=f"Output Classification: {label} \n Confidence: {confidence:.2f} \n Time Step: {self.time_step}",
-                        verticalalignment="center",
-                        fontsize="large",
-                        fontstyle="normal"
-                        )
-        self.label.axis('off')
+        bargraph = pg.BarGraphItem(
+            x=np.arange(self.a_in.shape[0]), height=self.data, width=0.5
+        )
+        self.plt.addItem(bargraph)
 
-        # Live display
-        clear_output(wait=True)
-        display(self.fig)
+        self.app.processEvents()
 
-
+        if self.time_step == self.sample_length:
+            pg.QtWidgets.QApplication.exec_()
 
 
 # Testing function
