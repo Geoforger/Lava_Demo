@@ -125,7 +125,7 @@ def objective(rank, world_size, OUTPUT_PATH, DATASET_PATH, true_rate):
     #############################
     # Training params
     #############################
-    num_epochs = 25
+    num_epochs = 100
     learning_rate = 0.001   # Starting learning rate
     batch_size = 1
     hidden_layer = 125
@@ -251,8 +251,6 @@ def objective(rank, world_size, OUTPUT_PATH, DATASET_PATH, true_rate):
         test_stats = pd.DataFrame(data={
             "Labels": testing_labels,
             "Predictions": testing_preds,
-            "Speeds": speed_labels,
-            "Depths": depth_labels,
             "True Rate": true_rate
         })
         test_stats.to_csv(f"{OUTPUT_PATH}/output_labels.csv")

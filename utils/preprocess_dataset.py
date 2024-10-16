@@ -143,7 +143,7 @@ def main():
     args = {
         "DATASET_PATH": dataset,
         "OUTPUT_PATH": output,
-        "pixel_reduction": (195, 170, 102, 110),
+        "pixel_reduction": (196, 170, 102, 110),
         "lava": False,
         "save": True,
         "cuttoff": 1000,
