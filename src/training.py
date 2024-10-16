@@ -113,8 +113,8 @@ def objective(rank, world_size, OUTPUT_PATH, DATASET_PATH, true_rate):
     #############################
     # Output params
     #############################
+    OUTPUT_PATH = f"{OUTPUT_PATH}{int(time.time())}/"
     if rank == 0:
-        OUTPUT_PATH = f"{OUTPUT_PATH}{int(time.time())}/"
         os.makedirs(OUTPUT_PATH, exist_ok=False)
 
     # Read meta for x, y sizes of preproc data
@@ -127,7 +127,7 @@ def objective(rank, world_size, OUTPUT_PATH, DATASET_PATH, true_rate):
     #############################
     num_epochs = 25
     learning_rate = 0.001   # Starting learning rate
-    batch_size = 2
+    batch_size = 1
     hidden_layer = 125
     factor = 3.33   # Factor by which to divide the learning rate
     lr_epoch = 200    # Lower the learning rate by factor every lr_epoch epochs
