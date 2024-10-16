@@ -18,7 +18,7 @@ class DataCollector:
         self.sensor = Proxy("PYRONAME:neurotac_service_1")
         self.trial_idx = 0
         self.obj_idx = 0
-        self.total_time = 5
+        self.total_time = 3
         self.root = None
         self.progress_bar = None
         self.progress_var = None

@@ -18,7 +18,8 @@ import numpy as np
 # import os
 # import nums_from_string     # pip install nums_from_string
 import time
-import torch  # Used to create torch tensor for integration with lava
+
+# import torch  # Used to create torch tensor for integration with lava
 import lava.lib.dl.slayer as slayer  # Used for creating the Events object
 import seaborn as sns
 from matplotlib import pyplot as plt
@@ -66,6 +67,20 @@ class DataProcessor:
 
         return cls(data, AER=AER)
 
+    def save_data(self, PATH):
+        """Function to save processed data
+        Arguments
+        ---------
+        PATH:       string
+                        Path to save location for data. NOTE: Currently you must specify the filename and type in this PATH string
+        """
+        with open(PATH, "wb") as pickle_out:
+            pickle.dump(self.data, pickle_out)
+            pickle_out.close()
+
+    def save_data_np(self, PATH):
+        np.save(PATH, self.data, allow_pickle=True)
+
     def data_show(self):
         """ " Function to print the current data stored in the class"""
         print(self.data)
@@ -77,7 +92,7 @@ class DataProcessor:
         unproc_data = np.zeros(self.data.shape)
         for y in range(self.data.shape[0]):
             for x in range(self.data.shape[1]):
-                for spike in self.data[y, x]:
+                for spike in list(self.data[y, x]):
                     unproc_data[y, x] += 1
 
         if normalise:
@@ -332,54 +347,57 @@ class DataProcessor:
                         Int either 0 or 1 to indicate the channel of the data. For some reason SLAYER reads in my data with 0 events (wanted 1 events)
         """
         if not self.__AER:
-            # Convert to AER and then read back string - this avoids issues with sorting in timestamp order
-            # Create a temporary list to contain information for all events
-            temp_list = []
+            # Find all non-zero elements in the 2D array
+            non_empty_mask = np.array(
+                [[arr.size > 0 for arr in row] for row in self.data]
+            )
+            indices_of_non_empty = np.argwhere(non_empty_mask)
 
-            # Debug
-            # print(f"Maximum number of rows (y max) = {self.data.shape[0]}")
-            # print(f"Maximum number of columns (x max) = {self.data.shape[1]}")
+            # Preallocate arrays based on total number of spikes
+            total_spikes = sum(arr.size for arr in self.data[non_empty_mask])
+            ts_array = np.empty(
+                total_spikes, dtype=int
+            )  # Assuming data has uniform dtype
+            x_array = np.empty(total_spikes, dtype=int)
+            y_array = np.empty(total_spikes, dtype=int)
 
-            # Cycle through each nested list and check if empty
-            # Check row
-            for y in range(self.data.shape[0]):
-                # Check column
-                for x in range(self.data.shape[1]):
-                    # Check if pixel (x,y) is empty
-                    if self.data[y, x].any():
-                        # Cycle through all events in this pixel
-                        for spike in self.data[y, x]:
-                            # Currently we only input ON events
-                            temp_list.append([x, y, ON_OFF, spike])
+            # Populate arrays
+            index = 0
+            for y, x in indices_of_non_empty:
+                size = self.data[y, x].size
+                ts_array[index : index + size] = self.data[y, x]
+                x_array[index : index + size] = x
+                y_array[index : index + size] = y
+                index += size
 
-            # Order by timestamp with earliest spike first
-            sorted_list = sorted(temp_list, key=lambda x: int(x[3]), reverse=False)
+            # Sort all values by spike time using NumPy's argsort
+            sorted_indices = np.argsort(ts_array)
 
-            # Move sorted list elements into arrays
-            x_array = []
-            y_array = []
-            ts_array = []
+            # Use these indices to reorder all three arrays
+            ts_array = ts_array[sorted_indices]
+            x_array = x_array[sorted_indices]
+            y_array = y_array[sorted_indices]
 
-            for event in range(len(sorted_list)):
-                x_array.append(sorted_list[event][0])
-                y_array.append(sorted_list[event][1])
-                ts_array.append(sorted_list[event][3])
-
-            # Should this be zeros or ones?
+            # # Create lists of each of the x,y,spike and c values
             channel_array = np.zeros(len(x_array))
 
             # Combine arrays into Event object
             # CHWT format
             td_event = slayer.io.Event(
-                x_event=x_array, y_event=y_array, c_event=channel_array, t_event=ts_array, payload=None)
-
+                x_event=x_array,
+                y_event=y_array,
+                c_event=channel_array,
+                t_event=ts_array,
+                payload=None,
+            )
+            
             self.data = td_event
 
             return td_event
 
         else:
             raise ValueError(
-                "Data is in AER format and cannot perform create_events operation"
+                "Data is in AER format and cannot perform create_tensor operation"
             )
 
     def threshold_pooling(self, kernel_size, stride, threshold):
@@ -396,29 +414,19 @@ class DataProcessor:
         chips_y, chips_x, out_vector = self.__find_chips(stride)
         chips = list(zip(chips_y, chips_x))
 
-        # Apply padding if required
-        # If the final chip starting position along a dimension + chip size along the same dimension > number of pixels, pad the difference
-        y_remain = (chips_y[-1] + kernel_size[0]) % self.data.shape[0]
-        x_remain = (chips_x[-1] + kernel_size[1]) % self.data.shape[1]
+        # Apply padding if needed
+        pad_y = (kernel_size[0] - self.data.shape[0] % stride) % kernel_size[0]
+        pad_x = (kernel_size[1] - self.data.shape[1] % stride) % kernel_size[1]
+        # NOTE: This padding needs to be done with 0s or there must be a catch
+        self.data = np.pad(
+            self.data, ((0, pad_y), (0, pad_x)), mode="constant", constant_values=None
+        )
 
-        # Create a number of rows/columns (containing empty lists) equal to the remainder
-        if y_remain != 0:
-            row = np.empty(self.data.shape[1], dtype=object)
-            l = []
-            for y in range(self.data.shape[1]):
-                row[y] = l
-
-            for _ in range(y_remain):
-                self.data = np.vstack([self.data, row])
-
-        if x_remain != 0:
-            col = np.empty(self.data.shape[0], dtype=object)
-            l = []
-            for x in range(self.data.shape[0]):
-                col[x] = l
-
-            for _ in range(x_remain):
-                self.data = np.c_[self.data, col]
+        # Replace None with empty lists
+        for y in range(self.data.shape[0]):
+            for x in range(self.data.shape[1]):
+                if self.data[y, x] is None:
+                    self.data[y, x] = []
 
         # Create output vector
         data_out = np.zeros(out_vector, dtype=object)
@@ -507,6 +515,99 @@ class DataProcessor:
         """
         return int(((input_dim - kernel_dim) / stride) + (1 * order))
 
+    # TODO: Fix this
+    def new_threshold_pooling(self, kernel_size, stride, threshold, order=1):
+        # Apply padding to the data
+        pad_y = (kernel_size[0] - self.data.shape[0] % stride) % kernel_size[0]
+        pad_x = (kernel_size[1] - self.data.shape[1] % stride) % kernel_size[1]
+        # NOTE: This padding needs to be done with 0s or there must be a catch
+        self.data = np.pad(
+            self.data, ((0, pad_y), (0, pad_x)), mode="constant", constant_values=None
+        )
+
+        # Replace None with empty lists
+        for y in range(self.data.shape[0]):
+            for x in range(self.data.shape[1]):
+                if self.data[y, x] is None:
+                    self.data[y, x] = []
+
+        # Calculate output dimensions
+        pooled_dim_y = self.__calculate_pooling_dim(
+            self.data.shape[0], kernel_size[0], stride, order
+        )
+        pooled_dim_x = self.__calculate_pooling_dim(
+            self.data.shape[1], kernel_size[1], stride, order
+        )
+        # pooled_dim_y, pooled_dim_x = self.data.shape
+        data_out = np.zeros((pooled_dim_y, pooled_dim_x), dtype=object)
+
+        # Initialize data_out with empty lists
+        for y in range(pooled_dim_y):
+            for x in range(pooled_dim_x):
+                data_out[y, x] = []
+
+        # Apply threshold pooling using vectorized operations
+        for y in range(0, self.data.shape[0] - kernel_size[0] + 1, stride):
+            for x in range(0, self.data.shape[1] - kernel_size[1] + 1, stride):
+                square = self.data[y : y + kernel_size[0], x : x + kernel_size[1]]
+
+                # print(square)
+
+                unique_timestamps, counts = np.unique(square, return_counts=True)
+                # print(unique_timestamps)
+                # Implement thresholding logic here
+                # Check if any timestamp exceeds the threshold
+                for timestamp, count in zip(unique_timestamps, counts):
+                    if count > threshold:
+                        data_out[y // stride, x // stride].append(timestamp)
+
+        self.data = data_out
+
+    def add_salt_and_pepper_noise(
+        self, sample_length=1000, salt_prob=0.01, pepper_prob=0.01
+    ):
+        """
+        Private method to add salt and pepper noise to data. This "salt" adds in spikes, whereas "pepper" removes spikes.
+
+        Arguments
+        ----------
+        sample_length (int): Length of the data sample in ms
+        salt_prob (float): Probability of adding a spike into a specfic coordinate
+        pepper_prob (float): Probability of removing a spike from a specfic coordinate
+        """
+        noisy_data = np.copy(self.data)
+        shape = [self.data.shape[0], self.data.shape[1], sample_length]
+
+        # Total points should be relative to the total number of spikes
+        unique_points = np.concatenate(
+            [ar for ar in noisy_data.flatten() if len(ar) > 0]
+        )
+        # print(unique_points)
+        total_points = len(unique_points)
+
+        # Salt noise
+        num_salt = int(np.ceil(salt_prob * total_points))
+        for _ in range(num_salt):
+            x_coord = np.random.randint(0, shape[0])
+            y_coord = np.random.randint(0, shape[1])
+            ts_coord = np.random.randint(0, shape[2])
+
+            # Add in new values and sort in ts order
+            noisy_data[x_coord, y_coord] = np.append(
+                noisy_data[x_coord, y_coord], ts_coord
+            )
+            noisy_data[x_coord, y_coord] = np.sort(noisy_data[x_coord, y_coord])
+
+        # Pepper noise
+        num_pepper = int(np.ceil(pepper_prob * total_points))
+        for _ in range(num_pepper):
+            x_coord = np.random.randint(0, shape[0])
+            y_coord = np.random.randint(0, shape[1])
+
+            noisy_data[x_coord, y_coord] = np.array([])
+
+        self.data = noisy_data
+        
     def create_lava_array(self, sample_length):
         """
         Method to create a tensor of events compatible with lava input processes
@@ -523,6 +624,7 @@ class DataProcessor:
         )
 
         return event_tensor.reshape(-1, sample_length)
+
 
 
 # Testing of the class
