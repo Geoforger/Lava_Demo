@@ -35,7 +35,6 @@ class DataProcessor:
     AER:    Bool (default=False)
                 Bool to indicate if loaded data is in AER format
     """
-
     def __init__(self, data=None, AER=False):
         self.data = data
         # Flag to indicate if data has been converted to AER and thus made unavailable for most  operations
@@ -309,12 +308,14 @@ class DataProcessor:
     def save_data_np(self, PATH):
         np.save(PATH, self.data, allow_pickle=True)
 
-    def offset_values(self, offset, reduce=False):
+    def offset_values(self, offset, downsample=None, reduce=False):
         """Function to offset input data to avoid negative spike times
         Arguments
         ---------
         offset:     int
                         offset to add to each event in ms
+        downsample: bool
+                        Enabling downsampling here rounds each event to the nearest 10ms, deleting duplicates
         reduce:     bool
                         Set to true if data is already offset and should be clipped back rather than forwards. Default = False
         """
@@ -328,15 +329,16 @@ class DataProcessor:
                 if self.data[y, x] != []:
                     # If need to clip data back then remove all before offset and reduce all values by offset
                     if reduce:
-                        temp_list = [
-                            (spike - offset)
-                            for spike in self.data[y, x]
-                            if spike >= offset
-                        ]
+                        temp_list = [spike for spike in self.data[y, x] if spike >= offset]
+                        temp_lise = [(spike - offset) for spike in temp_list]
                     # Else simply add the offset to each spike
                     else:
                         temp_list = [(spike + offset) for spike in self.data[y, x]]
-
+                
+                # This rounds to the nearest 10ms for downsampling purposes
+                if downsample is not None:
+                    temp_list = set([round(spike, -1) for spike in temp_list])
+                
                 self.data[y, x] = temp_list
 
     def create_events(self, ON_OFF=1):
@@ -390,7 +392,7 @@ class DataProcessor:
                 t_event=ts_array,
                 payload=None,
             )
-            
+
             self.data = td_event
 
             return td_event
@@ -607,7 +609,7 @@ class DataProcessor:
             noisy_data[x_coord, y_coord] = np.array([])
 
         self.data = noisy_data
-        
+
     def create_lava_array(self, sample_length):
         """
         Method to create a tensor of events compatible with lava input processes
@@ -625,7 +627,18 @@ class DataProcessor:
 
         return event_tensor.reshape(-1, sample_length)
 
+    def find_start(self, threshold):
+        # Flatten and unpack data
+        flat_data = self.data.flatten()
+        unpacked_data = [elt for l in flat_data for elt in l]
+        sorted_data = sorted(unpacked_data)
 
+        # Find where the threshold spikes occur
+        spike_count = 0
+        for spike in sorted_data:
+            spike_count += 1
+            if spike_count >= threshold:
+                return spike
 
 # Testing of the class
 if __name__ == "__main__":

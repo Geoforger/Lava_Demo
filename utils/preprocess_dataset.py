@@ -1,9 +1,12 @@
 import numpy as np
-from data_processor import DataProcessor
 import glob
+import os
+import pandas as pd
 import lava.lib.dl.slayer as slayer
 import concurrent.futures
-from utils import nums_from_string, log_data
+from utils import nums_from_string
+from data_processor import DataProcessor
+
 
 def PreprocessSample(**kwargs):
     """
@@ -24,15 +27,19 @@ def PreprocessSample(**kwargs):
     """
     # input_path = kwargs["DATASET_PATH"]
     filename = kwargs["sample"]
-
     try:
-        # data = DataProcessor.load_data_np(path=filename)
         data = DataProcessor.load_data(path=filename)
-        
+
         # Check args presented and apply preprocessing
         if "pixel_reduction" in kwargs:
             pixel_vals = kwargs["pixel_reduction"]
             data.pixel_reduction(pixel_vals[0], pixel_vals[1], pixel_vals[2], pixel_vals[3])
+
+        # Clip to start of sample
+        if "start_thresh" in kwargs:
+            sample_start = data.find_start(threshold=kwargs["start_thresh"])
+            data.offset_values(sample_start, reduce=True)
+
         if "offset" in kwargs:
             data.offset_values(kwargs["offset"], reduce=True)
         if "cuttoff" in kwargs:
@@ -44,14 +51,14 @@ def PreprocessSample(**kwargs):
             stride = kwargs["stride"]
             threshold = kwargs["threshold"]
             data.threshold_pooling(kernel, stride, threshold)
-        if "lava" in kwargs:
-            data.create_events()
+        output_shape = data.data.shape
 
         if "save" in kwargs and "OUTPUT_PATH" in kwargs:
             out_path = kwargs["OUTPUT_PATH"]
-            filename = filename.split('/')[-1]
+            filename = f"{filename.split('/')[-1]}"
 
-            if "lava" in kwargs:
+            if "lava" in kwargs and kwargs["lava"] is True:
+                data.create_events()
                 slayer.io.encode_np_spikes(f"{out_path}/{filename}", data.data)
             else:
                 data.save_data_np(f"{out_path}/{filename}")
@@ -60,14 +67,14 @@ def PreprocessSample(**kwargs):
             raise Exception("No filename provided to save processed data to")
 
         print("Processed data")
-        return data.data
+        return data.data, output_shape
     
-    except Exception:
+    except Exception as e:
         # Log sample name if fail to import
         d = {"filename":[filename]}
-        log_data("log.csv", d)
+        print(e)
+        print(d)
         return
-
 
 def PreprocessDataset(**kwargs):
     """
@@ -88,10 +95,19 @@ def PreprocessDataset(**kwargs):
     args = kwargs.copy()
     args["save"] = True
 
-    print(args["OUTPUT_PATH"])
+    # Create output folder
+    out_path = args["OUTPUT_PATH"]
+    if os.path.isdir(out_path):
+        d = input(f"Output path {out_path} exists. Overwrite? (Y/n)")
+        if d == "n":
+            raise Exception("Not overwriting output directory")
+        else:
+            print("Overwriting Directory")
+    else:  
+        os.mkdir(args["OUTPUT_PATH"])        
 
     path = args.get("DATASET_PATH", None)
-    filenames = glob.glob(f"{path}/*") 
+    filenames = glob.glob(f"{path}/*.pickle") 
 
     arg_dicts = [args.copy() for _ in range(len(filenames))]
     for idx, file in enumerate(filenames):
@@ -105,37 +121,40 @@ def PreprocessDataset(**kwargs):
 
         print("Getting results...")
         for f in concurrent.futures.as_completed(results):
-            f.result()
+            _, shape = f.result()
+
+    # Save args to a meta file
+    args["output_shape"] = shape
+    print(args)
+    # df = pd.DataFrame.from_dict(args, orient="columns")
+    df = pd.DataFrame([args])
+    df.to_csv(f"{out_path}/meta.csv")
 
     print("Finished processing dataset")
 
 
 def main(): 
-    dataset = f"/home/george/Documents/Lava_Demo/data/"
-    output = "/home/george/Documents/Lava_Demo/data/preprocessed_data"
-    
-    folders = [
-        "Handheld_tap_stroke_20/"
-    ]
+    dataset = "/media/george/T7 Shield/Neuromorphic Data/George/speed_depth_dataset"
+    output = "/media/george/T7 Shield/Neuromorphic Data/George/preprocessed_new_dataset/"
 
-    for folder in folders:
-        print(f"***{folder}***")
-        
-        args = {
-            "DATASET_PATH": dataset+folder,
-            "OUTPUT_PATH": output,
-            "pixel_reduction": (184, 194, 120, 110),
-            # "lava": False,    # NOTE: THIS SHOULD BE COMMENTED OUT AND NOT SET TO FALSE
-            "save": True,
-            "cuttoff": 3000,
-            "rmv_duplicates": True,
-            "pooling": True,
-            "kernel": (4,4),
-            "stride": 4,
-            "threshold": 1,
-        }
+    args = {
+        "DATASET_PATH": dataset,
+        "OUTPUT_PATH": output,
+        "pixel_reduction": (195, 170, 102, 110),
+        "lava": False,
+        "save": True,
+        # "start_thresh": 50,
+        # "offset": 100,
+        "cuttoff": 1000,
+        "rmv_duplicates": True,
+        "pooling": True,
+        "kernel": (4, 4),
+        "stride": 4,
+        "threshold": 1,
+    }
 
-        PreprocessDataset(**args)
+    PreprocessDataset(**args)
+
 
 if __name__ == "__main__":
     main()

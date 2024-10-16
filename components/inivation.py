@@ -181,7 +181,7 @@ class CameraThread():
     # Currently have to handle the lava process handing this setter and array
     @sync_time.setter
     def sync_time(self, val) -> None:
-        if type(val) == np.ndarray:
+        if isinstance(val, np.ndarray):
             val = bool(val[-1])
         if not isinstance(val, bool):
             raise ValueError(f"Moving must be a boolean value. Type {type(val)} provided")
@@ -258,8 +258,8 @@ class PySparseInivationCameraModel(PyLoihiProcessModel):
         """ Create sparse vector from an event batch"""
         data = event_batch.polarities()
         coords = event_batch.coordinates()
-        x = coords[:,0]
-        y = coords[:,1]
+        x = coords[:, 0]
+        y = coords[:, 1]
 
         indices = np.ravel_multi_index((x, y), self.cam_shape)
 
