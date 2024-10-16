@@ -89,7 +89,7 @@ class Network(torch.nn.Module):
             b.export_hdf5(layer.create_group(f'{i}'))
 
 
-def setup(rank, world_size):  
+def setup(rank, world_size):
     os.environ['MASTER_ADDR'] = 'localhost'
     os.environ['MASTER_PORT'] = '12355'
     dist.init_process_group("nccl", rank=rank, world_size=world_size)
@@ -107,17 +107,15 @@ def cleanup():
     print("Destroyed process groups...")
 
 
-def objective(rank, world_size, DATASET_PATH, true_rate):
+def objective(rank, world_size, OUTPUT_PATH, DATASET_PATH, true_rate):
     setup(rank, world_size)
 
     #############################
     # Output params
     #############################
-    start_time = int(time.time())
-    OUTPUT_PATH = f"/media/george/T7 Shield/Neuromorphic Data/George/arm_networks/arm_test_nonorm_{start_time}/"
     if rank == 0:
+        OUTPUT_PATH = f"{OUTPUT_PATH}{int(time.time())}/"
         os.makedirs(OUTPUT_PATH, exist_ok=False)
-        # os.makedirs(OUTPUT_PATH+"spikes/", exist_ok=False)
 
     # Read meta for x, y sizes of preproc data
     meta = pd.read_csv(f"{DATASET_PATH}/meta.csv")
@@ -254,7 +252,7 @@ def objective(rank, world_size, DATASET_PATH, true_rate):
             "True Rate": true_rate
         })
         test_stats.to_csv(f"{OUTPUT_PATH}/output_labels.csv")
-        print(f"Accuracy of test {start_time}: {stats.testing.best_accuracy}")
+        print(f"Accuracy of test: {stats.testing.best_accuracy}")
 
     cleanup()
 
@@ -263,6 +261,7 @@ def main():
     DATASET_PATH = (
         "/media/george/T7 Shield/Neuromorphic Data/George/lava_demo_preprocessed/"
     )
+    OUTPUT_PATH = "/media/george/T7 Shield/Neuromorphic Data/George/arm_networks/arm_test_nonorm_"
     train_ratio = 0.8
 
     # Train test split
@@ -275,7 +274,7 @@ def main():
         for _ in range(25):
             mp.spawn(
                 objective,
-                args=[world_size, DATASET_PATH, r],
+                args=[world_size, OUTPUT_PATH, DATASET_PATH, r],
                 nprocs=world_size
             )
             time.sleep(3)
