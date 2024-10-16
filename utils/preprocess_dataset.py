@@ -68,13 +68,14 @@ def PreprocessSample(**kwargs):
 
         print("Processed data")
         return data.data, output_shape
-    
+
     except Exception as e:
         # Log sample name if fail to import
-        d = {"filename":[filename]}
+        d = {"filename": [filename]}
         print(e)
         print(d)
         return
+
 
 def PreprocessDataset(**kwargs):
     """
@@ -103,15 +104,15 @@ def PreprocessDataset(**kwargs):
             raise Exception("Not overwriting output directory")
         else:
             print("Overwriting Directory")
-    else:  
-        os.mkdir(args["OUTPUT_PATH"])        
+    else:
+        os.mkdir(args["OUTPUT_PATH"])
 
     path = args.get("DATASET_PATH", None)
-    filenames = glob.glob(f"{path}/*.pickle") 
+    filenames = glob.glob(f"{path}/*.pickle")
 
     arg_dicts = [args.copy() for _ in range(len(filenames))]
     for idx, file in enumerate(filenames):
-        arg_dicts[idx].update({"sample":file})
+        arg_dicts[idx].update({"sample": file})
 
     results = []
     # Pool multiprocessor using lambda function to unpack arg dictionary
@@ -134,8 +135,10 @@ def PreprocessDataset(**kwargs):
 
 
 def main(): 
-    dataset = "/media/george/T7 Shield/Neuromorphic Data/George/speed_depth_dataset"
-    output = "/media/george/T7 Shield/Neuromorphic Data/George/preprocessed_new_dataset/"
+    dataset = "/media/farscope2/My Passport/George/George Datasets/lava_demo/"
+    output = (
+        "/media/farscope2/My Passport/George/George Datasets/lava_demo_preprocessed/"
+    )
 
     args = {
         "DATASET_PATH": dataset,
@@ -143,8 +146,6 @@ def main():
         "pixel_reduction": (195, 170, 102, 110),
         "lava": False,
         "save": True,
-        # "start_thresh": 50,
-        # "offset": 100,
         "cuttoff": 1000,
         "rmv_duplicates": True,
         "pooling": True,

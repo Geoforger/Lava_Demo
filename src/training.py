@@ -14,10 +14,10 @@ import numpy as np
 from sklearn.metrics import accuracy_score
 
 # Import the data processing class and data collection class
-from force_speed_dataset import ForceSpeedDataset
 import sys
 sys.path.append("..")
-from utils.utils import dataset_split
+from Lava_Demo.utils.force_speed_dataset import ForceSpeedDataset
+from Lava_Demo.utils.utils import dataset_split
 
 # Multi GPU
 import torch.distributed as dist
@@ -25,9 +25,10 @@ from torch.nn.parallel import DistributedDataParallel as DDP
 import torch.multiprocessing as mp
 from torch.utils.data.distributed import DistributedSampler
 
-# ## Define network structure as before
-class Network(torch.nn.Module):  # Define network
-    def __init__(self, output_neurons, x_size, y_size, dropout=0.1, pruning=0.3):
+
+# Define network structure
+class Network(torch.nn.Module):
+    def __init__(self, output_neurons, x_size, y_size, dropout=0.1):
         super(Network, self).__init__()
 
         neuron_params = {
@@ -79,7 +80,7 @@ class Network(torch.nn.Module):  # Define network
         plt.close()
 
         return grad
-    
+
     def export_hdf5(self, filename):
         # network export to hdf5 format
         h = h5py.File(filename, 'w')
@@ -96,9 +97,8 @@ def setup(rank, world_size):
 
 def prepare(dataset, rank, world_size, batch_size=32, pin_memory=False, num_workers=0):
     sampler = DistributedSampler(dataset, num_replicas=world_size, rank=rank, shuffle=False, drop_last=False)
-    
     dataloader = DataLoader(dataset, batch_size=batch_size, pin_memory=pin_memory, num_workers=num_workers, drop_last=False, shuffle=False, sampler=sampler)
-    
+
     return dataloader
 
 
@@ -211,11 +211,17 @@ def objective(rank, world_size, DATASET_PATH, true_rate):
         # Testing loop
         if rank == 0:
             print("Testing...")
-        for _, (input, label, speed, force) in enumerate(test_loader):
+        for _, (input, label) in enumerate(test_loader):
             output = assistant.test(input, label)
-        
+            if epoch == num_epochs - 1:
+                for o in range(len(slayer.classifier.Rate.predict(output))):
+                    testing_labels.append(int(label[o].cpu()))
+                    testing_preds.append(
+                        int(slayer.classifier.Rate.predict(output)[o].cpu())
+                    )
+
         dist.barrier()  # Wait for all ranks to finish epoch
-        
+
         if stats.testing.best_accuracy:
             if rank == 0:
                 torch.save(net.module.state_dict(), f"{OUTPUT_PATH}/network.pt")
@@ -234,60 +240,37 @@ def objective(rank, world_size, DATASET_PATH, true_rate):
     # TODO: This should be changed to look at the output stats file instead of the stats object
     # Save the best network to a hdf5 file
     if rank == 0:
+        print("Finished training")
         net.module.load_state_dict(torch.load(f"{OUTPUT_PATH}/network.pt"))
         net.module.export_hdf5(f"{OUTPUT_PATH}/network.net")
-    print("Finished training")
-    
-    # Perform validation loop
-    validation_set = ForceSpeedDataset(
-        DATASET_PATH,
-        train=False,
-        valid=True
-    )
+        print(f"Validation accuracy: {accuracy_score(testing_labels, testing_preds)}")
 
-    val_loader = prepare(validation_set, rank, world_size, batch_size=batch_size, num_workers=0)
-    
-    if rank == 0:
-        print("Performing validation...")
-    for _, (input, label, speed, force) in enumerate(val_loader):
-        output = assistant.test(input, label)
-        for l in range(len(slayer.classifier.Rate.predict(output))):
-            testing_labels.append(int(label[l].cpu()))
-            testing_preds.append(int(
-                slayer.classifier.Rate.predict(output)[l].cpu()
-            ))
-            speed_labels.append(int(speed[l]))
-            depth_labels.append(float(force[l]))
-
-            # Save output spikes
-            # np.save(f"{OUTPUT_PATH}/spikes/{filename[l]}", output[l].cpu())
-    print(f"Validation accuracy: {accuracy_score(testing_labels, testing_preds)}")
-
-    # Save output stats for testing
-    test_stats = pd.DataFrame(data={
-        "Labels": testing_labels,
-        "Predictions": testing_preds,
-        "Speeds": speed_labels,
-        "Depths": depth_labels,
-        "True Rate": true_rate
-    })
-    test_stats.to_csv(f"{OUTPUT_PATH}/output_labels.csv")
-    print(f"Accuracy of test {start_time}: {stats.testing.best_accuracy}")
+        # Save output stats for testing
+        test_stats = pd.DataFrame(data={
+            "Labels": testing_labels,
+            "Predictions": testing_preds,
+            "Speeds": speed_labels,
+            "Depths": depth_labels,
+            "True Rate": true_rate
+        })
+        test_stats.to_csv(f"{OUTPUT_PATH}/output_labels.csv")
+        print(f"Accuracy of test {start_time}: {stats.testing.best_accuracy}")
 
     cleanup()
 
 
 def main():
-    DATASET_PATH = "/media/george/T7 Shield/Neuromorphic Data/George/speed_depth_preproc_downsampled/"
-    train_ratio = 0.6
-    valid_ratio = 0.2
-    
+    DATASET_PATH = (
+        "/media/george/T7 Shield/Neuromorphic Data/George/lava_demo_preprocessed/"
+    )
+    train_ratio = 0.8
+
     # Train test split
     print(f"Splitting dataset into train/test with ratio: {train_ratio}")
-    dataset_split(DATASET_PATH, train_ratio=train_ratio, valid_ratio=valid_ratio)
-    
+    dataset_split(DATASET_PATH, train_ratio=train_ratio, valid_ratio=None)
+
     world_size = 3
-    
+
     for r in np.arange(0.7, 1.0, 0.1):
         for _ in range(25):
             mp.spawn(
@@ -296,6 +279,7 @@ def main():
                 nprocs=world_size
             )
             time.sleep(3)
+
 
 if __name__ == "__main__":
     main()
