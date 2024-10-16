@@ -16,7 +16,7 @@ from sklearn.metrics import accuracy_score
 # Import the data processing class and data collection class
 import sys
 sys.path.append("..")
-from Lava_Demo.utils.force_speed_dataset import ForceSpeedDataset
+from Lava_Demo.src.demo_dataset import DemoDataset
 from Lava_Demo.utils.utils import dataset_split
 
 # Multi GPU
@@ -127,7 +127,7 @@ def objective(rank, world_size, OUTPUT_PATH, DATASET_PATH, true_rate):
     #############################
     num_epochs = 25
     learning_rate = 0.001   # Starting learning rate
-    batch_size = 350
+    batch_size = 2
     hidden_layer = 125
     factor = 3.33   # Factor by which to divide the learning rate
     lr_epoch = 200    # Lower the learning rate by factor every lr_epoch epochs
@@ -136,7 +136,7 @@ def objective(rank, world_size, OUTPUT_PATH, DATASET_PATH, true_rate):
 
     # Initialise network and slayer assistant
     net = Network(
-        output_neurons=10,
+        output_neurons=3,
         x_size=x_size,
         y_size=y_size,
         dropout=0.3
@@ -161,13 +161,17 @@ def objective(rank, world_size, OUTPUT_PATH, DATASET_PATH, true_rate):
         net, error, optimizer, stats, classifier=slayer.classifier.Rate.predict)
 
     # Load in datasets
-    training_set = ForceSpeedDataset(
+    training_set = DemoDataset(
         DATASET_PATH,
         train=True,
+        x_size=x_size,
+        y_size=y_size,
     )
-    testing_set = ForceSpeedDataset(
+    testing_set = DemoDataset(
         DATASET_PATH,
         train=False,
+        x_size=x_size,
+        y_size=y_size,
     )
 
     train_loader = prepare(training_set, rank, world_size, batch_size=batch_size, num_workers=0)
@@ -203,7 +207,7 @@ def objective(rank, world_size, OUTPUT_PATH, DATASET_PATH, true_rate):
         # Training loop
         if rank == 0:
             print("Training...")
-        for _, (input, label, _s, _f) in enumerate(train_loader):
+        for _, (input, label) in enumerate(train_loader):
             output = assistant.train(input, label)
 
         # Testing loop
@@ -259,9 +263,9 @@ def objective(rank, world_size, OUTPUT_PATH, DATASET_PATH, true_rate):
 
 def main():
     DATASET_PATH = (
-        "/media/george/T7 Shield/Neuromorphic Data/George/lava_demo_preprocessed/"
+        "/media/george/My Passport/George/George Datasets/lava_demo_preprocessed/"
     )
-    OUTPUT_PATH = "/media/george/T7 Shield/Neuromorphic Data/George/arm_networks/arm_test_nonorm_"
+    OUTPUT_PATH = "/home/george/Documents/Lava_Demo/networks/net_test_"
     train_ratio = 0.8
 
     # Train test split

@@ -111,14 +111,16 @@ def dataset_split(PATH, train_ratio=0.6, valid_ratio=None):
     """
     filenames = glob.glob(f"{PATH}/*on.pickle.npy")
     
+    print(len(filenames))
+    
     if os.path.exists(f"{PATH}/train/") and os.path.exists(f"{PATH}/test/"):
         if (input(f"Train & Test directories exist on dataset path {PATH}. Overwrite? This WILL overwrite both directories (y,N)") != "y"):
             print("Not overwriting current directories")
             return
-            
+
     os.makedirs(f"{PATH}/train/", exist_ok=False)
     os.makedirs(f"{PATH}/test/", exist_ok=False)
-        
+
     # Create the train/test/split
     train, test = train_test_split(filenames, train_size=train_ratio, test_size=1-train_ratio)
     

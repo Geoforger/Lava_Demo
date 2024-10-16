@@ -28,7 +28,7 @@ def PreprocessSample(**kwargs):
     # input_path = kwargs["DATASET_PATH"]
     filename = kwargs["sample"]
     try:
-        data = DataProcessor.load_data(path=filename)
+        data = DataProcessor.load_data_np(path=filename)
 
         # Check args presented and apply preprocessing
         if "pixel_reduction" in kwargs:
@@ -108,7 +108,7 @@ def PreprocessDataset(**kwargs):
         os.mkdir(args["OUTPUT_PATH"])
 
     path = args.get("DATASET_PATH", None)
-    filenames = glob.glob(f"{path}/*.pickle")
+    filenames = glob.glob(f"{path}/*.pickle.npy")
 
     arg_dicts = [args.copy() for _ in range(len(filenames))]
     for idx, file in enumerate(filenames):
@@ -135,9 +135,9 @@ def PreprocessDataset(**kwargs):
 
 
 def main(): 
-    dataset = "/media/farscope2/My Passport/George/George Datasets/lava_demo/"
+    dataset = "/media/george/My Passport/George/George Datasets/lava_demo/"
     output = (
-        "/media/farscope2/My Passport/George/George Datasets/lava_demo_preprocessed/"
+        "/media/george/My Passport/George/George Datasets/lava_demo_preprocessed/"
     )
 
     args = {
