@@ -43,7 +43,7 @@ def main():
 
     # Initialise network
     net = netx.hdf5.Network(
-        net_config="/home/farscope2/Documents/PhD/Lava_Demo/networks/network.net",
+        net_config="/home/farscope2/Documents/PhD/Lava_Demo/components/network.net",
         sparse_fc_layer=False,
         input_shape=np.prod(
             pooling.s_out.shape,
@@ -107,6 +107,7 @@ def main():
     print("Running Network...")
     net.run(condition=run_condition, run_cfg=run_cfg)
     print("Started sim..")
+    # input("Press any key to end sim...")
     time.sleep(1000)
     net.stop()
     print("Finished running")

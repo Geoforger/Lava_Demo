@@ -104,11 +104,13 @@ class PySparseDecisionVisualiserModel(PyLoihiProcessModel):
 
         self.ax.clear()
         self.bar_container = self.ax.bar(bar_x, bar_height)
-        self.ax.set_xlabel("Neuron Idx")
+        self.ax.set_xlabel("Object")
         self.ax.set_ylabel("Spike Count")
         self.ax.set_title("Decision Plotter")
-        self.ax.set_ylim(0, 100)
-        self.ax.set_yticks(np.arange(0,150,50))
+        self.ax.set_ylim(0, 5000)
+        self.ax.set_yticks(np.arange(0, 5100, 1000))
+        self.ax.set_xticks(bar_x)
+        self.ax.set_xticklabels(["Flat", "Edge", "Point"])
         self.canvas.draw()
         self.background = self.canvas.copy_from_bbox(self.ax.bbox)
 
